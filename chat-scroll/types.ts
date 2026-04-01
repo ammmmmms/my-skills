@@ -1,18 +1,7 @@
 /**
- * 消息对象接口，必须包含 id 字段
- * 其余字段由你的业务自行定义
- */
-export interface ChatMessage {
-  id: string
-  [key: string]: any
-}
-
-/**
  * ChatScroll 组件 Props
  */
 export interface ChatScrollProps {
-  /** 消息列表，每条消息必须有 id 字段 */
-  messages: ChatMessage[]
   /** 是否正在加载历史消息 */
   loading?: boolean
   /** 是否还有更多历史消息可加载 */
@@ -37,6 +26,6 @@ export interface ChatScrollEmits {
 export interface ChatScrollExpose {
   /** 滚动到底部，smooth 控制是否平滑滚动 */
   scrollToBottom: (smooth?: boolean) => void
-  /** 滚动到指定消息的顶部 */
+  /** 滚动到指定消息的顶部（需要消息元素有 data-message-id 属性） */
   scrollToMessage: (messageId: string) => void
 }

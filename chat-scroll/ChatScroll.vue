@@ -1,51 +1,49 @@
-<!--
-  ChatScroll — AI 流式聊天滚动容器组件
-
-  功能：
-  1. 下拉加载历史消息（移动端弹性下拉 / PC loading spinner）
-  2. 快速到底按钮（上滑超过 200px 或锚定触发时显示，流式输出中带 loading 外圈）
-  3. 回到消息顶部按钮（一条消息占满整个可视区域时显示）
-  4. 智能锚定（AI 流式输出时自动滚底，用户问题到达容器顶部时停止）
-
-  使用示例：
-  ```vue
-  <ChatScroll
-    :messages="messages"
-    :streaming-message-id="streamingId"
-    :anchor-message-id="currentQuestionId"
-    :loading="loadingHistory"
-    :has-more="hasMore"
-    @load-more="loadHistory"
-  >
-    <template #message="{ message }">
-      <YourChatMessage :message="message" />
-    </template>
-  </ChatScroll>
-  ```
-
-  Props：
-  - messages:            消息数组，每条必须有 id 字段
-  - streamingMessageId:  当前流式输出的消息 ID，传 null 表示没有流式输出
-  - anchorMessageId:     锚定的用户问题 ID，流式输出时该消息到顶则停止滚动
-  - loading:             是否正在加载历史消息
-  - hasMore:             是否还有更多历史消息
-
-  Events：
-  - load-more:           需要加载历史消息时触发
-
-  Expose（通过 ref 调用）：
-  - scrollToBottom(smooth?: boolean)
-  - scrollToMessage(messageId: string)
--->
 <script setup lang="ts">
+/**
+ * ChatScroll — AI 流式聊天滚动容器组件（纯容器，不负责消息渲染）
+ *
+ * 功能：
+ * 1. 下拉加载历史消息（移动端弹性下拉 / PC loading spinner）
+ * 2. 快速到底按钮（上滑超过 200px 或锚定触发时显示，流式输出中带 loading 外圈）
+ * 3. 回到消息顶部按钮（一条消息占满整个可视区域时显示）
+ * 4. 智能锚定（AI 流式输出时自动滚底，用户问题到达容器顶部时停止）
+ *
+ * 使用示例：
+ *
+ *   <ChatScroll
+ *     :streaming-message-id="streamingId"
+ *     :anchor-message-id="currentQuestionId"
+ *     :loading="loadingHistory"
+ *     :has-more="hasMore"
+ *     @load-more="loadHistory"
+ *   >
+ *     <ChatList :messages="messages" />
+ *   </ChatScroll>
+ *
+ * 同事需要配合：
+ * 每条消息的根元素上添加 data-message-id 属性，值为消息 ID。
+ * 例如：div data-message-id="msg-123"
+ * 锚定定位和"回到消息顶部"功能依赖此属性。
+ *
+ * Props：
+ * - streamingMessageId:  当前流式输出的消息 ID，null 表示无流式输出
+ * - anchorMessageId:     锚定的用户问题 ID，流式输出时该消息到顶则停止滚动
+ * - loading:             是否正在加载历史消息
+ * - hasMore:             是否还有更多历史消息
+ *
+ * Events：
+ * - load-more:           需要加载历史消息时触发
+ *
+ * Expose（通过 ref 调用）：
+ * - scrollToBottom(smooth?: boolean)
+ * - scrollToMessage(messageId: string)
+ */
 import { ref, computed, toRef, watch } from 'vue'
-import type { ChatMessage } from './types'
 import { useAutoScroll } from './useAutoScroll'
 import { usePullToLoad } from './usePullToLoad'
 
 const props = withDefaults(
   defineProps<{
-    messages: ChatMessage[]
     loading?: boolean
     hasMore?: boolean
     streamingMessageId?: string | null
@@ -67,7 +65,6 @@ const containerRef = ref<HTMLElement | null>(null)
 
 // ====== 自动滚动 + 锚定 ======
 const {
-  userScrolledUp,
   anchorReachedTop,
   onScroll: onAutoScroll,
   scrollToBottom,
@@ -169,15 +166,8 @@ defineExpose({ scrollToBottom, scrollToMessage })
         <span>加载中...</span>
       </div>
 
-      <!-- 消息列表：自动包裹 wrapper div 添加 data-message-id -->
-      <div
-        v-for="msg in messages"
-        :key="msg.id"
-        :data-message-id="msg.id"
-        class="message-wrapper"
-      >
-        <slot name="message" :message="msg" />
-      </div>
+      <!-- 默认插槽：放入同事的 ChatList 组件 -->
+      <slot />
     </div>
 
     <!-- 回到消息顶部按钮（↑） -->
