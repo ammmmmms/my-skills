@@ -38,9 +38,21 @@
  * - scrollToBottom(smooth?: boolean)
  * - scrollToMessage(messageId: string)
  */
-import { ref, computed, toRef, watch } from 'vue'
+import { ref, computed, toRef, watch, nextTick, onUnmounted } from 'vue'
 import { useAutoScroll } from './useAutoScroll'
 import { usePullToLoad } from './usePullToLoad'
+
+/** 简易节流：间隔内最多执行一次 */
+function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+  let last = 0
+  return ((...args: any[]) => {
+    const now = Date.now()
+    if (now - last >= ms) {
+      last = now
+      fn(...args)
+    }
+  }) as T
+}
 
 const props = withDefaults(
   defineProps<{
@@ -89,8 +101,33 @@ const {
   onLoadMore: () => emit('load-more'),
 })
 
-// loading 结束时重置下拉距离
-watch(() => props.loading, (val) => { if (!val) resetPull() })
+/**
+ * 加载历史消息前记录 scrollHeight，加载完成后补偿 scrollTop
+ * 补偿后再往上偏移 30px，让用户感知到新消息已加载
+ * 移动端和 PC 端都适用
+ */
+let prevScrollHeight = 0
+const LOAD_OFFSET = 30
+
+watch(() => props.loading, (val) => {
+  const container = containerRef.value
+  if (val && container) {
+    prevScrollHeight = container.scrollHeight
+  }
+  if (!val) {
+    resetPull()
+    // 等 DOM 更新后再补偿 scrollTop
+    nextTick(() => {
+      if (container && prevScrollHeight > 0) {
+        const delta = container.scrollHeight - prevScrollHeight
+        if (delta > 0) {
+          container.scrollTop += delta - LOAD_OFFSET
+        }
+        prevScrollHeight = 0
+      }
+    })
+  }
+})
 
 // ====== 快速到底按钮 ======
 const distanceToBottom = ref(0)
@@ -104,7 +141,7 @@ const showScrollToBottom = computed(
 const fullScreenMessageId = ref<string | null>(null)
 
 /** 检测是否有一条消息占满整个可视区域（顶部被裁切 >30px 且底部超出容器） */
-function detectFullScreenMessage() {
+const detectFullScreenMessage = throttle(() => {
   const container = containerRef.value
   if (!container) return
 
@@ -121,7 +158,7 @@ function detectFullScreenMessage() {
   }
 
   fullScreenMessageId.value = found
-}
+}, 100) // 100ms 节流，避免消息多时卡顿
 
 // ====== 统一 scroll 处理 ======
 function onScroll() {

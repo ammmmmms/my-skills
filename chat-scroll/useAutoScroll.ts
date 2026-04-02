@@ -1,4 +1,4 @@
-import { ref, watch, nextTick, type Ref } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, type Ref } from 'vue'
 
 interface UseAutoScrollOptions {
   /** 滚动容器的 ref */
@@ -13,10 +13,11 @@ interface UseAutoScrollOptions {
  * 自动滚动 + 智能锚定逻辑
  *
  * 核心行为：
- * 1. AI 流式输出时，通过 MutationObserver 监听内容变化，自动滚到底部
- * 2. 当 anchorMessageId 对应的消息滚到容器顶部时，停止自动滚动（锚定）
- * 3. 用户手动上滑时，停止自动滚动
- * 4. 用户点击"到底"按钮后，本轮流式跳过锚定检查，持续滚到底
+ * 1. 常驻 MutationObserver 监听容器内容变化，用户在底部时自动滚底
+ * 2. 流式输出时（streamingMessageId 有值），启用锚定检查
+ * 3. 当 anchorMessageId 对应的消息滚到容器顶部时，停止自动滚动（锚定）
+ * 4. 用户手动上滑时，停止自动滚动
+ * 5. 用户点击"到底"按钮后，本轮流式跳过锚定检查，持续滚到底
  */
 export function useAutoScroll({
   containerRef,
@@ -33,12 +34,22 @@ export function useAutoScroll({
   let lastScrollTop = 0
   /** 标记当前滚动是程序触发的，避免 scroll 事件误判为用户行为 */
   let isAutoScrolling = false
+  /** 标记 smooth scroll 进行中，期间不判定用户上滑 */
+  let isSmoothScrolling = false
+  let smoothScrollTimer: ReturnType<typeof setTimeout> | null = null
+
+  /** 是否正在流式输出 */
+  function isStreaming(): boolean {
+    return !!streamingMessageId.value
+  }
 
   /**
    * 检查锚定消息是否已到达容器顶部
-   * 条件：容器可滚动 + 锚定消息的 top <= 容器 top
+   * 仅在流式输出中才检查
    */
   function checkAnchorPosition(): boolean {
+    if (!isStreaming()) return false
+
     const container = containerRef.value
     if (!container || !anchorMessageId.value) return false
 
@@ -63,7 +74,7 @@ export function useAutoScroll({
 
     if (userScrolledUp.value) return
 
-    // 锚定检查（bypass 时跳过）
+    // 锚定检查（仅流式输出中，且未 bypass 时）
     if (!anchorBypassed && checkAnchorPosition()) {
       anchorReachedTop.value = true
       return
@@ -85,8 +96,8 @@ export function useAutoScroll({
     const { scrollTop, scrollHeight, clientHeight } = container
     const distanceToBottom = scrollHeight - scrollTop - clientHeight
 
-    // 用户向上滚动超过 5px 判定为手动上滑
-    if (scrollTop < lastScrollTop - 5) {
+    // smooth scroll 进行中不判定为用户上滑
+    if (!isSmoothScrolling && scrollTop < lastScrollTop - 5) {
       userScrolledUp.value = true
     }
 
@@ -112,14 +123,21 @@ export function useAutoScroll({
     anchorBypassed = true
 
     if (smooth) {
+      isSmoothScrolling = true
+      if (smoothScrollTimer) clearTimeout(smoothScrollTimer)
+      smoothScrollTimer = setTimeout(() => {
+        isSmoothScrolling = false
+        lastScrollTop = container.scrollTop
+      }, 600)
+
       container.scrollTo({
         top: container.scrollHeight - container.clientHeight,
         behavior: 'smooth',
       })
     } else {
       container.scrollTop = container.scrollHeight - container.clientHeight
+      lastScrollTop = container.scrollTop
     }
-    lastScrollTop = container.scrollTop
   }
 
   /** 滚动到指定消息的顶部对齐容器顶部 */
@@ -136,52 +154,66 @@ export function useAutoScroll({
     const elRect = el.getBoundingClientRect()
     const offset = elRect.top - containerRect.top
 
+    isSmoothScrolling = true
+    if (smoothScrollTimer) clearTimeout(smoothScrollTimer)
+    smoothScrollTimer = setTimeout(() => {
+      isSmoothScrolling = false
+      lastScrollTop = container.scrollTop
+    }, 600)
+
     container.scrollTo({
       top: container.scrollTop + offset,
       behavior: 'smooth',
     })
   }
 
-  // 监听 streamingMessageId 变化，启动/停止 MutationObserver
+  // ====== 常驻 MutationObserver ======
   let observer: MutationObserver | null = null
 
-  watch(
-    streamingMessageId,
-    (newId) => {
-      observer?.disconnect()
+  function startObserver() {
+    const container = containerRef.value
+    if (!container || observer) return
 
-      if (!newId) {
-        observer = null
-        return
+    observer = new MutationObserver(() => {
+      // 用户在底部附近 → 自动滚底（不管是否在流式输出）
+      // 锚定检查在 autoScrollToBottom 内部处理
+      if (!anchorReachedTop.value || anchorBypassed) {
+        autoScrollToBottom()
       }
+    })
 
-      // 新一轮流式输出开始，重置所有状态
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+  }
+
+  function stopObserver() {
+    observer?.disconnect()
+    observer = null
+  }
+
+  // 容器挂载后启动 observer
+  onMounted(() => {
+    nextTick(startObserver)
+  })
+
+  // 监听 streamingMessageId 变化，重置锚定状态
+  watch(streamingMessageId, (newId) => {
+    if (newId) {
+      // 新一轮流式输出开始，重置状态
       anchorReachedTop.value = false
       userScrolledUp.value = false
       anchorBypassed = false
+    }
+  })
 
-      nextTick(() => {
-        const container = containerRef.value
-        if (!container) return
-
-        autoScrollToBottom()
-
-        // 监听容器内 DOM 变化（流式内容追加），自动滚到底
-        observer = new MutationObserver(() => {
-          if (!anchorReachedTop.value || anchorBypassed) {
-            autoScrollToBottom()
-          }
-        })
-
-        observer.observe(container, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-        })
-      })
-    },
-    { immediate: true }
-  )
+  // 组件卸载时清理
+  onUnmounted(() => {
+    stopObserver()
+    if (smoothScrollTimer) clearTimeout(smoothScrollTimer)
+  })
 
   return {
     userScrolledUp,

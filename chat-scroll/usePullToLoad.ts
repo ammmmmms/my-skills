@@ -81,11 +81,23 @@ export function usePullToLoad({
 
   // ====== PC 端滚到顶部自动加载 ======
 
+  /** 防止 scroll 期间重复触发 onLoadMore */
+  let loadMoreFired = false
+
   function onScroll() {
     if (isMobile.value) return
     const container = containerRef.value
     if (!container || loading.value || !hasMore.value) return
-    if (container.scrollTop < 50) onLoadMore()
+
+    if (container.scrollTop < 50) {
+      if (!loadMoreFired) {
+        loadMoreFired = true
+        onLoadMore()
+      }
+    } else {
+      // 滚离顶部后重置，下次再到顶可以再触发
+      loadMoreFired = false
+    }
   }
 
   /** 加载完成后调用，重置下拉距离 */
