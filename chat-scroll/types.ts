@@ -26,6 +26,6 @@ export interface ChatScrollEmits {
 export interface ChatScrollExpose {
   /** 滚动到底部，smooth 控制是否平滑滚动 */
   scrollToBottom: (smooth?: boolean) => void
-  /** 滚动到指定消息的顶部（需要消息元素有 data-message-id 属性） */
+  /** 滚动到指定 AI 消息的顶部（需要消息元素有 data-message-ai-id 属性） */
   scrollToMessage: (messageId: string) => void
 }

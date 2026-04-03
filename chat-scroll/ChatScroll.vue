@@ -21,9 +21,11 @@
  *   </ChatScroll>
  *
  * 同事需要配合：
- * 每条消息的根元素上添加 data-message-id 属性，值为消息 ID。
- * 例如：div data-message-id="msg-123"
- * 锚定定位和"回到消息顶部"功能依赖此属性。
+ * 用户消息根元素添加 data-message-user-id 属性（锚定定位依赖）
+ * AI 消息根元素添加 data-message-ai-id 属性（上翻按钮和 scrollToMessage 依赖）
+ * 例如：
+ *   用户消息：div data-message-user-id="msg-1"
+ *   AI 消息：div data-message-ai-id="msg-2"
  *
  * Props：
  * - streamingMessageId:  当前流式输出的消息 ID，null 表示无流式输出
@@ -38,7 +40,7 @@
  * - scrollToBottom(smooth?: boolean)
  * - scrollToMessage(messageId: string)
  */
-import { ref, computed, toRef, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, toRef, watch, nextTick } from 'vue'
 import { useAutoScroll } from './useAutoScroll'
 import { usePullToLoad } from './usePullToLoad'
 
@@ -85,6 +87,7 @@ const {
   containerRef,
   streamingMessageId: toRef(props, 'streamingMessageId'),
   anchorMessageId: toRef(props, 'anchorMessageId'),
+  onContentChange: () => detectFullScreenMessage(),
 })
 
 // ====== 下拉加载 ======
@@ -146,13 +149,13 @@ const detectFullScreenMessage = throttle(() => {
   if (!container) return
 
   const containerRect = container.getBoundingClientRect()
-  const wrappers = container.querySelectorAll('[data-message-id]')
+  const wrappers = container.querySelectorAll('[data-message-ai-id]')
   let found: string | null = null
 
   for (const el of wrappers) {
     const rect = (el as HTMLElement).getBoundingClientRect()
     if (rect.top < containerRect.top - 30 && rect.bottom >= containerRect.bottom - 2) {
-      found = (el as HTMLElement).dataset.messageId || null
+      found = (el as HTMLElement).dataset.messageAiId || null
       break
     }
   }

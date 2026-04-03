@@ -7,6 +7,8 @@ interface UseAutoScrollOptions {
   streamingMessageId: Ref<string | null | undefined>
   /** 锚定的用户问题消息 ID */
   anchorMessageId: Ref<string | null | undefined>
+  /** 容器内容变化时的回调（DOM 变化时触发） */
+  onContentChange?: () => void
 }
 
 /**
@@ -23,6 +25,7 @@ export function useAutoScroll({
   containerRef,
   streamingMessageId,
   anchorMessageId,
+  onContentChange,
 }: UseAutoScrollOptions) {
   /** 用户是否主动上滑（手动接管了滚动） */
   const userScrolledUp = ref(false)
@@ -43,30 +46,6 @@ export function useAutoScroll({
     return !!streamingMessageId.value
   }
 
-  /**
-   * 检查锚定消息是否已到达容器顶部
-   * 仅在流式输出中才检查
-   */
-  function checkAnchorPosition(): boolean {
-    if (!isStreaming()) return false
-
-    const container = containerRef.value
-    if (!container || !anchorMessageId.value) return false
-
-    const anchorEl = container.querySelector(
-      `[data-message-id="${anchorMessageId.value}"]`
-    ) as HTMLElement | null
-    if (!anchorEl) return false
-
-    // 内容未溢出（不可滚动）时不触发锚定
-    if (container.scrollHeight <= container.clientHeight) return false
-
-    const containerRect = container.getBoundingClientRect()
-    const anchorRect = anchorEl.getBoundingClientRect()
-
-    return anchorRect.top <= containerRect.top + 2 // 2px 容差
-  }
-
   /** 执行自动滚动到底部 */
   function autoScrollToBottom() {
     const container = containerRef.value
@@ -74,10 +53,33 @@ export function useAutoScroll({
 
     if (userScrolledUp.value) return
 
-    // 锚定检查（仅流式输出中，且未 bypass 时）
-    if (!anchorBypassed && checkAnchorPosition()) {
-      anchorReachedTop.value = true
-      return
+    // 锚定检查（未 bypass 时）：预判滚底后锚点是否会超出容器顶部
+    if (!anchorBypassed && anchorMessageId.value) {
+      const anchorEl = container.querySelector(
+        `[data-message-user-id="${anchorMessageId.value}"]`
+      ) as HTMLElement | null
+      if (anchorEl && container.scrollHeight > container.clientHeight) {
+        const containerRect = container.getBoundingClientRect()
+        const anchorRect = anchorEl.getBoundingClientRect()
+        const maxScrollTop = container.scrollHeight - container.clientHeight
+        const scrollDelta = maxScrollTop - container.scrollTop
+        // 滚底后锚点相对容器顶部的位置
+        const futureAnchorTop = anchorRect.top - scrollDelta
+        if (futureAnchorTop <= containerRect.top + 2) {
+          // 改为滚到锚点对齐容器顶部
+          const targetScrollTop = container.scrollTop + (anchorRect.top - containerRect.top)
+          if (Math.abs(container.scrollTop - targetScrollTop) > 1) {
+            isAutoScrolling = true
+            container.scrollTop = targetScrollTop
+            requestAnimationFrame(() => {
+              isAutoScrolling = false
+              lastScrollTop = container.scrollTop
+            })
+          }
+          anchorReachedTop.value = true
+          return
+        }
+      }
     }
 
     isAutoScrolling = true
@@ -146,7 +148,7 @@ export function useAutoScroll({
     if (!container) return
 
     const el = container.querySelector(
-      `[data-message-id="${messageId}"]`
+      `[data-message-ai-id="${messageId}"]`
     ) as HTMLElement | null
     if (!el) return
 
@@ -175,11 +177,39 @@ export function useAutoScroll({
     if (!container || observer) return
 
     observer = new MutationObserver(() => {
-      // 用户在底部附近 → 自动滚底（不管是否在流式输出）
-      // 锚定检查在 autoScrollToBottom 内部处理
       if (!anchorReachedTop.value || anchorBypassed) {
+        // 非流式场景：内容一次性插入，直接检查滚底后锚点是否会超出顶部
+        // 如果会，改为滚到锚点对齐位置
+        if (!isStreaming() && !anchorBypassed && anchorMessageId.value) {
+          const container = containerRef.value
+          if (container && !userScrolledUp.value) {
+            const anchorEl = container.querySelector(
+              `[data-message-user-id="${anchorMessageId.value}"]`
+            ) as HTMLElement | null
+            if (anchorEl && container.scrollHeight > container.clientHeight) {
+              const containerRect = container.getBoundingClientRect()
+              const anchorRect = anchorEl.getBoundingClientRect()
+              // 计算滚底后锚点的位置：滚底会让 scrollTop 增加 (scrollHeight - clientHeight - scrollTop)
+              const maxScrollTop = container.scrollHeight - container.clientHeight
+              const futureAnchorTop = anchorRect.top - (maxScrollTop - container.scrollTop)
+              if (futureAnchorTop <= containerRect.top + 2) {
+                // 滚底会让锚点超出顶部，改为滚到锚点对齐
+                isAutoScrolling = true
+                container.scrollTop = container.scrollTop + (anchorRect.top - containerRect.top)
+                requestAnimationFrame(() => {
+                  isAutoScrolling = false
+                  lastScrollTop = container.scrollTop
+                })
+                anchorReachedTop.value = true
+                onContentChange?.()
+                return
+              }
+            }
+          }
+        }
         autoScrollToBottom()
       }
+      onContentChange?.()
     })
 
     observer.observe(container, {
@@ -199,10 +229,9 @@ export function useAutoScroll({
     nextTick(startObserver)
   })
 
-  // 监听 streamingMessageId 变化，重置锚定状态
-  watch(streamingMessageId, (newId) => {
-    if (newId) {
-      // 新一轮流式输出开始，重置状态
+  // anchorMessageId 变化（新一轮对话开始），重置锚定状态（流式和非流式均适用）
+  watch(anchorMessageId, (newId, oldId) => {
+    if (newId && newId !== oldId) {
       anchorReachedTop.value = false
       userScrolledUp.value = false
       anchorBypassed = false
