@@ -60,13 +60,13 @@ const props = withDefaults(
   defineProps<{
     loading?: boolean
     hasMore?: boolean
-    streamingMessageId?: string | null
+    isStreaming?: boolean
     anchorMessageId?: string | null
   }>(),
   {
     loading: false,
     hasMore: true,
-    streamingMessageId: null,
+    isStreaming: false,
     anchorMessageId: null,
   }
 )
@@ -85,7 +85,7 @@ const {
   scrollToMessage,
 } = useAutoScroll({
   containerRef,
-  streamingMessageId: toRef(props, 'streamingMessageId'),
+  isStreaming: toRef(props, 'isStreaming'),
   anchorMessageId: toRef(props, 'anchorMessageId'),
   onContentChange: () => detectFullScreenMessage(),
 })
@@ -134,7 +134,7 @@ watch(() => props.loading, (val) => {
 
 // ====== 快速到底按钮 ======
 const distanceToBottom = ref(0)
-const isStreaming = computed(() => !!props.streamingMessageId)
+const isStreaming = computed(() => props.isStreaming)
 // 上滑超过 200px 或锚定触发时显示
 const showScrollToBottom = computed(
   () => distanceToBottom.value > 200 || anchorReachedTop.value

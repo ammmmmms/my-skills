@@ -6,8 +6,8 @@ export interface ChatScrollProps {
   loading?: boolean
   /** 是否还有更多历史消息可加载 */
   hasMore?: boolean
-  /** 当前正在流式输出的消息 ID，null 表示没有流式输出 */
-  streamingMessageId?: string | null
+  /** 是否正在流式输出 */
+  isStreaming?: boolean
   /** 锚定的用户问题消息 ID，当该消息滚到容器顶部时停止自动滚动 */
   anchorMessageId?: string | null
 }
