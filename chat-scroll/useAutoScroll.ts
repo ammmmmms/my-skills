@@ -45,6 +45,11 @@ export function useAutoScroll({
   /** 标记 smooth scroll 进行中，期间不判定用户上滑 */
   let isSmoothScrolling = false
   let smoothScrollTimer: ReturnType<typeof setTimeout> | null = null
+  let bottomCorrectionTimer: ReturnType<typeof setTimeout> | null = null
+
+  function getDistanceToBottom(container: HTMLElement) {
+    return container.scrollHeight - container.clientHeight - container.scrollTop
+  }
 
   function scrollBottomTarget(smooth: boolean) {
     const container = containerRef.value
@@ -62,6 +67,28 @@ export function useAutoScroll({
     container.scrollTo({
       top: container.scrollHeight - container.clientHeight,
       behavior: smooth ? 'smooth' : 'auto',
+    })
+  }
+
+  function runBottomScroll(onSettled?: () => void) {
+    scrollBottomTarget(false)
+
+    if (bottomCorrectionTimer) clearTimeout(bottomCorrectionTimer)
+    requestAnimationFrame(() => {
+      bottomCorrectionTimer = setTimeout(() => {
+        const container = containerRef.value
+        if (container && !userScrolledUp.value && getDistanceToBottom(container) > 2) {
+          scrollBottomTarget(false)
+        }
+
+        requestAnimationFrame(() => {
+          const currentContainer = containerRef.value
+          if (currentContainer) {
+            lastScrollTop = currentContainer.scrollTop
+          }
+          onSettled?.()
+        })
+      }, 80)
     })
   }
 
@@ -98,8 +125,10 @@ export function useAutoScroll({
         }
       }
     }
-
-    scrollToBottom({ smooth: false, focus: false })
+    isAutoScrolling = true
+    runBottomScroll(() => {
+      isAutoScrolling = false
+    })
   }
 
   /** 处理 scroll 事件 — 检测用户手动上滑 / 回到底部 */
@@ -146,12 +175,7 @@ export function useAutoScroll({
 
       scrollBottomTarget(true)
     } else {
-      isAutoScrolling = true
-      scrollBottomTarget(false)
-      requestAnimationFrame(() => {
-        isAutoScrolling = false
-        lastScrollTop = container.scrollTop
-      })
+      runBottomScroll()
     }
   }
 
@@ -247,6 +271,7 @@ export function useAutoScroll({
   onUnmounted(() => {
     stopObserver()
     if (smoothScrollTimer) clearTimeout(smoothScrollTimer)
+    if (bottomCorrectionTimer) clearTimeout(bottomCorrectionTimer)
   })
 
   return {
