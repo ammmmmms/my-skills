@@ -14,6 +14,7 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  overflow-anchor: none;
 }
 
 /* 移动端弹性下拉指示器 */

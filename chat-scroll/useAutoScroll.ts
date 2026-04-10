@@ -1,8 +1,10 @@
-import { ref, watch, nextTick, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, watch, onMounted, onUnmounted, type Ref } from 'vue'
 
 interface UseAutoScrollOptions {
   /** 滚动容器的 ref */
   containerRef: Ref<HTMLElement | null>
+  /** 实际消息内容容器的 ref，用于监听图片等异步内容撑高 */
+  contentRef: Ref<HTMLElement | null>
   /** 是否正在流式输出 */
   isStreaming: Ref<boolean>
   /** 锚定的用户问题消息 ID */
@@ -22,6 +24,7 @@ interface UseAutoScrollOptions {
  */
 export function useAutoScroll({
   containerRef,
+  contentRef,
   isStreaming,
   anchorMessageId,
   onContentChange,
@@ -60,11 +63,13 @@ export function useAutoScroll({
           const targetScrollTop = container.scrollTop + (anchorRect.top - containerRect.top)
           if (Math.abs(container.scrollTop - targetScrollTop) > 1) {
             isAutoScrolling = true
-            container.scrollTop = targetScrollTop
-            requestAnimationFrame(() => {
-              isAutoScrolling = false
-              lastScrollTop = container.scrollTop
-            })
+            setTimeout(() => {
+              container.scrollTop = targetScrollTop
+              requestAnimationFrame(() => {
+                isAutoScrolling = false
+                lastScrollTop = container.scrollTop
+              })
+            }, 0)
           }
           anchorReachedTop.value = true
           return
@@ -73,11 +78,13 @@ export function useAutoScroll({
     }
 
     isAutoScrolling = true
-    container.scrollTop = container.scrollHeight - container.clientHeight
-    requestAnimationFrame(() => {
-      isAutoScrolling = false
-      lastScrollTop = container.scrollTop
-    })
+    setTimeout(() => {
+      container.scrollTop = container.scrollHeight - container.clientHeight
+      requestAnimationFrame(() => {
+        isAutoScrolling = false
+        lastScrollTop = container.scrollTop
+      })
+    }, 0)
   }
 
   /** 处理 scroll 事件 — 检测用户手动上滑 / 回到底部 */
@@ -104,13 +111,15 @@ export function useAutoScroll({
    * 手动滚动到底部（用户点击"到底"按钮时调用）
    * 会跳过本轮的锚定检查
    */
-  function scrollToBottom(smooth = true) {
+  function scrollToBottom({ smooth=true, focus=true } = {}) {
     const container = containerRef.value
     if (!container) return
 
-    userScrolledUp.value = false
-    anchorReachedTop.value = false
-    anchorBypassed = true
+    if(focus){
+      userScrolledUp.value = false
+      anchorReachedTop.value = false
+      anchorBypassed = true
+    }
 
     if (smooth) {
       isSmoothScrolling = true
@@ -125,8 +134,13 @@ export function useAutoScroll({
         behavior: 'smooth',
       })
     } else {
-      container.scrollTop = container.scrollHeight - container.clientHeight
-      lastScrollTop = container.scrollTop
+      container.scrollTo({
+        top: container.scrollHeight - container.clientHeight,
+        behavior: 'instant',
+      })
+      requestAnimationFrame(() => {
+        lastScrollTop = container.scrollTop
+      })
     }
   }
 
@@ -159,11 +173,13 @@ export function useAutoScroll({
 
   // ====== 常驻 MutationObserver ======
   let observer: MutationObserver | null = null
+  let resizeObserver: ResizeObserver | null = null
 
   function startObserver() {
     const container = containerRef.value
+    const content = contentRef.value
     if (!container || observer) return
-
+    scrollToBottom({smooth: false, focus: false})
     observer = new MutationObserver(() => {
       if (!anchorReachedTop.value || anchorBypassed) {
         autoScrollToBottom()
@@ -176,15 +192,27 @@ export function useAutoScroll({
       subtree: true,
       characterData: true,
     })
+
+    if (content) {
+      resizeObserver = new ResizeObserver(() => {
+        if (!anchorReachedTop.value || anchorBypassed) {
+          autoScrollToBottom()
+        }
+        onContentChange?.()
+      })
+      resizeObserver.observe(content)
+    }
   }
 
   function stopObserver() {
     observer?.disconnect()
     observer = null
+    resizeObserver?.disconnect()
+    resizeObserver = null
   }
 
   onMounted(() => {
-    nextTick(startObserver)
+    setTimeout(startObserver)
   })
 
   // anchorMessageId 变化（新一轮对话开始），重置锚定状态
@@ -198,9 +226,11 @@ export function useAutoScroll({
 
   // 流式结束后重置 anchorBypassed，为下一轮做准备
   watch(isStreaming, (val) => {
-    if (!val) {
-      anchorBypassed = false
-    }
+    requestAnimationFrame(() => {
+      if (!val) {
+        anchorBypassed = false
+      }
+    })
   })
 
   onUnmounted(() => {

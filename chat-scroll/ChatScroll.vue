@@ -76,6 +76,7 @@ const emit = defineEmits<{
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
 
 // ====== 自动滚动 + 锚定 ======
 const {
@@ -85,6 +86,7 @@ const {
   scrollToMessage,
 } = useAutoScroll({
   containerRef,
+  contentRef,
   isStreaming: toRef(props, 'isStreaming'),
   anchorMessageId: toRef(props, 'anchorMessageId'),
   onContentChange: () => detectFullScreenMessage(),
@@ -154,14 +156,15 @@ const detectFullScreenMessage = throttle(() => {
 
   for (const el of wrappers) {
     const rect = (el as HTMLElement).getBoundingClientRect()
-    if (rect.top < containerRect.top - 30 && rect.bottom >= containerRect.bottom - 2) {
+    console.log(rect.top, containerRect.top, rect.bottom, containerRect.bottom )
+    if (rect.top < containerRect.top - 30 && rect.bottom >= containerRect.bottom - 20) {
       found = (el as HTMLElement).dataset.messageAiId || null
       break
     }
   }
 
   fullScreenMessageId.value = found
-}, 100) // 100ms 节流，避免消息多时卡顿
+}, 30) // 30ms 节流，避免消息多时卡顿
 
 // ====== 统一 scroll 处理 ======
 function onScroll() {
@@ -178,6 +181,10 @@ function onScrollToTop() {
   if (fullScreenMessageId.value) {
     scrollToMessage(fullScreenMessageId.value)
   }
+}
+
+function onScrollToBottom() {
+  scrollToBottom()
 }
 
 defineExpose({ scrollToBottom, scrollToMessage })
@@ -207,7 +214,9 @@ defineExpose({ scrollToBottom, scrollToMessage })
       </div>
 
       <!-- 默认插槽：放入同事的 ChatList 组件 -->
-      <slot />
+      <div ref="contentRef" class="chat-scroll-content">
+        <slot />
+      </div>
     </div>
 
     <!-- 回到消息顶部按钮（↑） -->
@@ -230,7 +239,7 @@ defineExpose({ scrollToBottom, scrollToMessage })
         v-if="showScrollToBottom"
         class="scroll-btn scroll-to-bottom-btn"
         :title="isStreaming ? 'AI 输出中，点击回到底部' : '回到底部'"
-        @click="scrollToBottom(true)"
+        @click="onScrollToBottom"
       >
         <span v-if="isStreaming" class="btn-spinner-ring" />
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
