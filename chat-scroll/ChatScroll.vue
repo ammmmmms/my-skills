@@ -77,6 +77,7 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
+const bottomSentinelRef = ref<HTMLElement | null>(null)
 
 // ====== 自动滚动 + 锚定 ======
 const {
@@ -87,6 +88,7 @@ const {
 } = useAutoScroll({
   containerRef,
   contentRef,
+  bottomSentinelRef,
   isStreaming: toRef(props, 'isStreaming'),
   anchorMessageId: toRef(props, 'anchorMessageId'),
   onContentChange: () => detectFullScreenMessage(),
@@ -216,6 +218,7 @@ defineExpose({ scrollToBottom, scrollToMessage })
       <!-- 默认插槽：放入同事的 ChatList 组件 -->
       <div ref="contentRef" class="chat-scroll-content">
         <slot />
+        <div ref="bottomSentinelRef" class="chat-scroll-bottom-sentinel" aria-hidden="true" />
       </div>
     </div>
 

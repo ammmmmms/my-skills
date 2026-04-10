@@ -5,6 +5,8 @@ interface UseAutoScrollOptions {
   containerRef: Ref<HTMLElement | null>
   /** 实际消息内容容器的 ref，用于监听图片等异步内容撑高 */
   contentRef: Ref<HTMLElement | null>
+  /** 消息列表底部哨兵节点，用于更稳地滚到底部 */
+  bottomSentinelRef: Ref<HTMLElement | null>
   /** 是否正在流式输出 */
   isStreaming: Ref<boolean>
   /** 锚定的用户问题消息 ID */
@@ -25,6 +27,7 @@ interface UseAutoScrollOptions {
 export function useAutoScroll({
   containerRef,
   contentRef,
+  bottomSentinelRef,
   isStreaming,
   anchorMessageId,
   onContentChange,
@@ -42,6 +45,25 @@ export function useAutoScroll({
   /** 标记 smooth scroll 进行中，期间不判定用户上滑 */
   let isSmoothScrolling = false
   let smoothScrollTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scrollBottomTarget(smooth: boolean) {
+    const container = containerRef.value
+    const bottomSentinel = bottomSentinelRef.value
+    if (!container) return
+
+    if (bottomSentinel) {
+      bottomSentinel.scrollIntoView({
+        block: 'end',
+        behavior: smooth ? 'smooth' : 'auto',
+      })
+      return
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight - container.clientHeight,
+      behavior: smooth ? 'smooth' : 'auto',
+    })
+  }
 
   /** 执行自动滚动到底部，带锚定预判 */
   function autoScrollToBottom() {
@@ -77,14 +99,7 @@ export function useAutoScroll({
       }
     }
 
-    isAutoScrolling = true
-    setTimeout(() => {
-      container.scrollTop = container.scrollHeight - container.clientHeight
-      requestAnimationFrame(() => {
-        isAutoScrolling = false
-        lastScrollTop = container.scrollTop
-      })
-    }, 0)
+    scrollToBottom({ smooth: false, focus: false })
   }
 
   /** 处理 scroll 事件 — 检测用户手动上滑 / 回到底部 */
@@ -129,16 +144,12 @@ export function useAutoScroll({
         lastScrollTop = container.scrollTop
       }, 600)
 
-      container.scrollTo({
-        top: container.scrollHeight - container.clientHeight,
-        behavior: 'smooth',
-      })
+      scrollBottomTarget(true)
     } else {
-      container.scrollTo({
-        top: container.scrollHeight - container.clientHeight,
-        behavior: 'instant',
-      })
+      isAutoScrolling = true
+      scrollBottomTarget(false)
       requestAnimationFrame(() => {
+        isAutoScrolling = false
         lastScrollTop = container.scrollTop
       })
     }

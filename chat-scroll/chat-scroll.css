@@ -17,6 +17,10 @@
   overflow-anchor: none;
 }
 
+.chat-scroll-bottom-sentinel {
+  height: 1px;
+}
+
 /* 移动端弹性下拉指示器 */
 .pull-indicator {
   display: flex;
