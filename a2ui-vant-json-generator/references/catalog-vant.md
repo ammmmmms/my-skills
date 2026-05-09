@@ -24,6 +24,7 @@ Use these components and fields by default.
 
 `Card`
 - `child`: single child id
+- `style`: inline style object with string or number values, for example `backgroundColor`, `border`, `padding`, `borderRadius`, `boxShadow`, `marginBottom`
 
 `CellGroup`
 - `title`

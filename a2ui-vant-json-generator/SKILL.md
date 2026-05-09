@@ -44,6 +44,7 @@ Read these when needed:
 
 - Use only components documented in `references/catalog-vant.md`.
 - `Text` with `variant: "caption"` is suitable for markdown content.
+- `Card` supports a `style` object with inline CSS entries such as `backgroundColor`, `border`, `padding`, `borderRadius`, `color`, or `boxShadow`.
 - `Row` supports `action`; use it when the whole row should be clickable.
 - `Icon` must follow the local Vant icon rules in `references/catalog-vant.md`.
 - Do not invent unsupported fields such as `loading` or `disabled` unless the user explicitly says the project has added them.

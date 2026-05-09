@@ -73,6 +73,27 @@ Avoid:
 }
 ```
 
+## Card Style
+
+`Card` may receive inline style overrides:
+
+```json
+{
+  "id": "hero-card",
+  "component": "Card",
+  "child": "hero-content",
+  "style": {
+    "backgroundColor": "#ecfeff",
+    "border": "1px solid #99f6e4",
+    "padding": "16px",
+    "borderRadius": "16px",
+    "boxShadow": "0 10px 30px rgba(20, 184, 166, 0.12)"
+  }
+}
+```
+
+Prefer `Card.style` for one-off visual tweaks instead of inventing unsupported fields.
+
 ## Button and Action
 
 Preferred form:
