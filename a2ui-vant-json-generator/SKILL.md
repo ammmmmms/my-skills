@@ -44,6 +44,13 @@ Read these when needed:
 
 - Use only components documented in `references/catalog-vant.md`.
 - `Text` with `variant: "caption"` is suitable for markdown content.
+- `Text` also supports `style` and `lines` in this local renderer.
+- `Row` and `Column` also support numeric `gap`, rendered as px.
+- `Row` and `Column` also support `style`.
+- `List` also supports numeric `gap`, rendered as px.
+- `List` also supports `style`.
+- `List` supports `collapse` with `limit`, `expandText`, `collapseText`, `popupTitle`, and `style`.
+- `Button` also supports `size` with Vant values `large | normal | small | mini`.
 - `Card` supports a `style` object with inline CSS entries such as `backgroundColor`, `border`, `padding`, `borderRadius`, `color`, or `boxShadow`.
 - `Row` supports `action`; use it when the whole row should be clickable.
 - `Icon` must follow the local Vant icon rules in `references/catalog-vant.md`.

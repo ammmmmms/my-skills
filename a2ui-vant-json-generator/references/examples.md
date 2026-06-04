@@ -40,6 +40,7 @@
             "component": "Button",
             "label": "保存",
             "variant": "primary",
+            "size": "small",
             "action": {
               "event": {
                 "name": "save_profile",
@@ -90,6 +91,17 @@
           {
             "id": "product-list",
             "component": "List",
+            "gap": 12,
+            "collapse": {
+              "limit": 2,
+              "expandText": "展开全部商品",
+              "collapseText": "收起商品",
+              "popupTitle": "全部商品",
+              "style": {
+                "color": "#1989fa",
+                "padding": "12px"
+              }
+            },
             "children": {
               "componentId": "product-card",
               "path": "/products"
@@ -109,12 +121,22 @@
           { "id": "product-card-content", "component": "Column", "children": ["product-name", "product-price", "product-desc", "buy-button"] },
           { "id": "product-name", "component": "Text", "text": { "path": "name" }, "variant": "h4" },
           { "id": "product-price", "component": "Text", "text": { "path": "priceText" }, "variant": "body" },
-          { "id": "product-desc", "component": "Text", "text": { "path": "description" }, "variant": "caption" },
+          {
+            "id": "product-desc",
+            "component": "Text",
+            "text": { "path": "description" },
+            "variant": "caption",
+            "lines": 2,
+            "style": {
+              "color": "#6b7280"
+            }
+          },
           {
             "id": "buy-button",
             "component": "Button",
             "label": "加入购物车",
             "variant": "primary",
+            "size": "small",
             "action": {
               "event": {
                 "name": "add_to_cart",
